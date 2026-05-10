@@ -106,7 +106,7 @@ export default function LoginPage() {
             </span>
           ) : (
             <>
-              <GoogleIcon className="w-4.5 h-4.5" />
+              <GoogleIcon className="w-[18px] h-[18px]" />
               Continue with Google
             </>
           )}
