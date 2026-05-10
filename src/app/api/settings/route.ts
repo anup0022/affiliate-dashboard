@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, DEFAULT_USER_ID, ensureDefaultUser } from "@/lib/db";
 
-const USER_ID = "user_default";
+const USER_ID = DEFAULT_USER_ID;
 
 function maskKey(key: string): string {
   if (key.length <= 4) return "****";
@@ -38,6 +38,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureDefaultUser();
+
     const body = await req.json();
     const { service, apiKey, apiSecret, accessToken, isActive } = body as {
       service: string;

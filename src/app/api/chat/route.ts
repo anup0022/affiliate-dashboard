@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, DEFAULT_USER_ID, ensureDefaultUser } from "@/lib/db";
 import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT = `You are AffiliateIQ Assistant, an expert affiliate marketing advisor. You help users choose the best affiliate products to promote, optimize their campaigns, and maximize earnings. You have access to trending data and can provide specific, actionable advice. Be concise but thorough.`;
 
-const USER_ID = "user_default";
+const USER_ID = DEFAULT_USER_ID;
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,8 +76,7 @@ export async function POST(req: NextRequest) {
           // In edge runtime, Prisma may not be available. If so, use a separate
           // endpoint or queue. Here we attempt a best-effort save.
           try {
-            // Edge runtime note: if Prisma doesn't work in edge, wrap this
-            // in a separate serverless function call. For now we attempt it.
+            await ensureDefaultUser();
             await Promise.all([
               prisma.chatMessage.create({
                 data: { userId: USER_ID, role: "user", content: message },

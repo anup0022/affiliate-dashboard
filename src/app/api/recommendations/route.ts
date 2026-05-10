@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, DEFAULT_USER_ID, ensureDefaultUser } from "@/lib/db";
 import { openai } from "@/lib/openai";
 
-const USER_ID = "user_default";
+const USER_ID = DEFAULT_USER_ID;
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST() {
   try {
+    await ensureDefaultUser();
+
     const trendingItems = await prisma.trendingItem.findMany({
       orderBy: { trendScore: "desc" },
       take: 20,

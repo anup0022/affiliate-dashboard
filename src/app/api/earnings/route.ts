@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma, DEFAULT_USER_ID, ensureDefaultUser } from "@/lib/db";
 
-const USER_ID = "user_default";
+const USER_ID = DEFAULT_USER_ID;
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,6 +64,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureDefaultUser();
+
     const body = await req.json();
     const { affiliateNetwork, amount, currency, period, source, details } =
       body as {
