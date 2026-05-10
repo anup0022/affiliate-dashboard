@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AffiliateIQ
+
+Smart affiliate marketing dashboard with trending product scanner, AI chat advisor, and earnings tracking.
+
+**Live:** [https://affiliate-dashboard-livid.vercel.app](https://affiliate-dashboard-livid.vercel.app)
+
+## Features
+
+- **Dashboard** — Earnings overview, stat cards, setup checklist, charts
+- **Trending Scanner** — Discover trending products with trend scores
+- **AI Chat Advisor** — GPT-powered affiliate marketing advice (streaming)
+- **Recommendations** — AI-generated product recommendations with confidence scores
+- **Affiliate Links** — Manage links across Amazon, CJ, ShareASale, Impact, ClickBank
+- **Google Ads** — Campaign management with AI ad copy generation
+- **Earnings** — Revenue tracking with charts, breakdowns, CSV export
+- **Settings** — Connect API keys for all services
+- **Help & Setup** — Step-by-step guides for every integration
+
+## Tech Stack
+
+- **Framework:** Next.js 14 (App Router)
+- **Styling:** Tailwind CSS 3, DM Sans font
+- **Auth:** NextAuth.js v4 (Google OAuth + Credentials)
+- **Database:** Supabase PostgreSQL via Prisma ORM
+- **AI:** OpenAI GPT-4o-mini (streaming)
+- **Charts:** Recharts
+- **Hosting:** Vercel
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/anup0022/affiliate-dashboard.git
+   cd affiliate-dashboard
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Copy `.env.example` to `.env` and fill in your keys:
+   ```bash
+   cp .env.example .env
+   ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+4. Generate Prisma client and push schema:
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+5. Run the dev server:
+   ```bash
+   npm run dev
+   ```
 
-## Learn More
+Open [http://localhost:3000](http://localhost:3000) to see the dashboard.
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See `.env.example` for all required variables:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Supabase PostgreSQL connection string |
+| `NEXTAUTH_SECRET` | Random secret for NextAuth sessions |
+| `NEXTAUTH_URL` | App URL (http://localhost:3000 for dev) |
+| `OPENAI_API_KEY` | OpenAI API key for AI chat |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `SERPAPI_KEY` | SerpAPI key for Google Trends data |
