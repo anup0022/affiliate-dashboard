@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/db";
 
-export const runtime = "edge";
+export const dynamic = "force-dynamic";
 
 const SYSTEM_PROMPT = `You are AffiliateIQ Assistant, an expert affiliate marketing advisor. You help users choose the best affiliate products to promote, optimize their campaigns, and maximize earnings. You have access to trending data and can provide specific, actionable advice. Be concise but thorough.`;
 
