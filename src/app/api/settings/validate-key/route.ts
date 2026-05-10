@@ -17,6 +17,15 @@ const SERVICE_RULES: Record<
     label: "OpenAI",
     liveCheck: true,
   },
+  "github-copilot": {
+    minLength: 20,
+    label: "GitHub Copilot",
+    liveCheck: true,
+  },
+  "ai-provider": {
+    minLength: 1,
+    label: "AI Provider",
+  },
   serpapi: {
     minLength: 20,
     label: "SerpAPI",
@@ -71,6 +80,44 @@ async function validateOpenAI(apiKey: string): Promise<{ valid: boolean; error?:
     return {
       valid: false,
       error: `Could not verify key: ${err instanceof Error ? err.message : "Unknown error"}`,
+    };
+  }
+}
+
+async function validateGitHubCopilot(token: string): Promise<{ valid: boolean; error?: string }> {
+  try {
+    // First check if the token is valid by hitting the GitHub API
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!userRes.ok) {
+      if (userRes.status === 401) {
+        return { valid: false, error: "Invalid GitHub token. Generate a new one at github.com/settings/tokens" };
+      }
+      return { valid: false, error: `GitHub API returned status ${userRes.status}` };
+    }
+
+    // Then check if the token can access GitHub Models (Copilot)
+    const client = new OpenAI({
+      apiKey: token,
+      baseURL: "https://models.inference.ai.azure.com",
+      timeout: 10000,
+    });
+
+    await client.models.list();
+    return { valid: true };
+  } catch (err) {
+    if (err instanceof OpenAI.AuthenticationError) {
+      return {
+        valid: false,
+        error: "GitHub token is valid but cannot access GitHub Models. Ensure you have a Copilot subscription and the token has 'copilot' scope.",
+      };
+    }
+    return {
+      valid: false,
+      error: `Could not verify GitHub Copilot access: ${err instanceof Error ? err.message : "Unknown error"}`,
     };
   }
 }
@@ -130,6 +177,11 @@ export async function POST(req: NextRequest) {
     // --- Live validation for supported services ---
     if (service === "openai") {
       const result = await validateOpenAI(trimmed);
+      return NextResponse.json(result);
+    }
+
+    if (service === "github-copilot") {
+      const result = await validateGitHubCopilot(trimmed);
       return NextResponse.json(result);
     }
 

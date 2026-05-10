@@ -36,6 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+    </svg>
+  )
+}
+
 interface ApiService {
   id: string
   name: string
@@ -51,6 +59,7 @@ interface ApiService {
 
 const SERVICE_DEFINITIONS: Omit<ApiService, "connected" | "maskedKey" | "dbId">[] = [
   { id: "openai", name: "OpenAI", icon: Brain, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", hint: "Create key at platform.openai.com → API Keys. Starts with sk-", url: "https://platform.openai.com/api-keys" },
+  { id: "github-copilot", name: "GitHub Copilot", icon: GithubIcon, iconBg: "bg-gray-50", iconColor: "text-gray-900", hint: "Use your GitHub PAT with Copilot subscription. Go to Settings → Developer settings → Personal access tokens", url: "https://github.com/settings/tokens" },
   { id: "google-ads", name: "Google Ads", icon: Globe, iconBg: "bg-blue-50", iconColor: "text-blue-600", hint: "Apply for a developer token in Google Ads → Tools → API Center", url: "https://ads.google.com/aw/apicenter" },
   { id: "amazon", name: "Amazon Associates", icon: ShoppingBag, iconBg: "bg-amber-50", iconColor: "text-amber-600", hint: "Get your PA API key from Product Advertising API dashboard", url: "https://affiliate-program.amazon.com/assoc_credentials/home" },
   { id: "cj", name: "CJ Affiliate", icon: Share2, iconBg: "bg-blue-50", iconColor: "text-blue-600", hint: "Find your API key in CJ → Account → Web Services", url: "https://members.cj.com/member/publisher/home.do" },
@@ -87,6 +96,7 @@ export default function SettingsPage() {
   const [refreshInterval, setRefreshInterval] = useState("6h")
   const [currency, setCurrency] = useState("USD")
   const [autoScan, setAutoScan] = useState(true)
+  const [aiProvider, setAiProvider] = useState("openai")
 
   // Load saved credentials from DB on mount
   const loadCredentials = useCallback(async () => {
@@ -110,6 +120,19 @@ export default function SettingsPage() {
           return { ...svc, connected: false, maskedKey: "", dbId: undefined }
         })
       )
+
+      // Load AI provider preference
+      const providerCred = creds.find((c) => c.service === "ai-provider")
+      if (providerCred) {
+        setAiProvider(providerCred.apiKey) // We store the provider name as apiKey
+      } else {
+        // Auto-detect: if github-copilot is connected but not openai, default to copilot
+        const hasGithub = creds.find((c) => c.service === "github-copilot" && c.isActive)
+        const hasOpenAI = creds.find((c) => c.service === "openai" && c.isActive)
+        if (hasGithub && !hasOpenAI) {
+          setAiProvider("github-copilot")
+        }
+      }
     } catch (err) {
       console.error("Failed to load credentials:", err)
     } finally {
@@ -460,6 +483,93 @@ export default function SettingsPage() {
       {/* Preferences Tab */}
       {activeTab === "preferences" && (
         <div className="space-y-6">
+          {/* AI Provider Selection */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+            <div className="px-6 pt-5 pb-1">
+              <h3 className="text-base font-semibold text-gray-900">AI Chat Provider</h3>
+              <p className="text-sm text-gray-500">Choose which AI service powers the chat assistant</p>
+            </div>
+            <div className="px-6 pb-6 pt-4 space-y-4">
+              {[
+                {
+                  value: "openai",
+                  label: "OpenAI",
+                  desc: "Uses GPT-4o-mini via OpenAI API. Requires credits ($5+ recommended).",
+                  icon: Brain,
+                  iconBg: "bg-emerald-50",
+                  iconColor: "text-emerald-600",
+                },
+                {
+                  value: "github-copilot",
+                  label: "GitHub Copilot",
+                  desc: "Uses GPT-4o via GitHub Models API. Free with Copilot subscription.",
+                  icon: GithubIcon,
+                  iconBg: "bg-gray-50",
+                  iconColor: "text-gray-900",
+                },
+              ].map((provider) => {
+                const Icon = provider.icon
+                const isSelected = aiProvider === provider.value
+                const isConnected = services.find((s) => s.id === provider.value)?.connected
+                return (
+                  <button
+                    key={provider.value}
+                    onClick={async () => {
+                      setAiProvider(provider.value)
+                      // Save preference to DB
+                      try {
+                        await fetch("/api/settings", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ service: "ai-provider", apiKey: provider.value }),
+                        })
+                      } catch {
+                        console.error("Failed to save AI provider preference")
+                      }
+                    }}
+                    className={`w-full flex items-center gap-4 rounded-xl border-2 p-4 text-left transition-all ${
+                      isSelected
+                        ? "border-blue-500 bg-blue-50/50"
+                        : "border-gray-100 hover:border-gray-200 bg-white"
+                    }`}
+                  >
+                    <div className={`rounded-full p-2.5 ${provider.iconBg}`}>
+                      <Icon className={`h-5 w-5 ${provider.iconColor}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-gray-900">{provider.label}</p>
+                        {isConnected ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                            <Check className="h-2.5 w-2.5" />Key Added
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                            No Key
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{provider.desc}</p>
+                    </div>
+                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      isSelected ? "border-blue-500" : "border-gray-300"
+                    }`}>
+                      {isSelected && <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />}
+                    </div>
+                  </button>
+                )
+              })}
+              {!services.find((s) => s.id === aiProvider)?.connected && (
+                <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2.5">
+                  <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700">
+                    Selected provider has no API key configured. Go to the <span className="font-medium">API Keys</span> tab to add one.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="px-6 pt-5 pb-1">
               <h3 className="text-base font-semibold text-gray-900">Notifications</h3>
