@@ -80,7 +80,14 @@ export default function ChatPage() {
       })
 
       if (!res.ok) {
-        throw new Error(`Request failed with status ${res.status}`)
+        let errorMsg = `Request failed with status ${res.status}`
+        try {
+          const errBody = await res.json()
+          if (errBody.error) errorMsg = errBody.error
+        } catch {
+          // response wasn't JSON, keep default message
+        }
+        throw new Error(errorMsg)
       }
 
       const reader = res.body?.getReader()

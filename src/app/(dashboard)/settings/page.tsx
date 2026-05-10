@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Key,
   User,
@@ -9,7 +9,6 @@ import {
   X,
   Eye,
   EyeOff,
-  AlertTriangle,
   Trash2,
   Save,
   Unplug,
@@ -22,10 +21,11 @@ import {
   TrendingUp,
   MessageSquare,
   Info,
+  Loader2,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -41,28 +41,36 @@ interface ApiService {
   name: string
   icon: React.ElementType
   connected: boolean
-  apiKey: string
+  maskedKey: string
   iconBg: string
   iconColor: string
+  hint: string
+  url: string
+  dbId?: string // id from database for disconnect/delete
 }
 
-const initialServices: ApiService[] = [
-  { id: "openai", name: "OpenAI", icon: Brain, connected: true, apiKey: "sk-...4f8K", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-  { id: "google-ads", name: "Google Ads", icon: Globe, connected: false, apiKey: "", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-  { id: "amazon", name: "Amazon Associates", icon: ShoppingBag, connected: true, apiKey: "amzn-...x9Rw", iconBg: "bg-amber-50", iconColor: "text-amber-600" },
-  { id: "cj", name: "CJ Affiliate", icon: Share2, connected: true, apiKey: "cj-...m3Pq", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-  { id: "shareasale", name: "ShareASale", icon: Zap, connected: false, apiKey: "", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-  { id: "impact", name: "Impact", icon: CreditCard, connected: true, apiKey: "imp-...k7Lv", iconBg: "bg-purple-50", iconColor: "text-purple-600" },
-  { id: "clickbank", name: "ClickBank", icon: CreditCard, connected: false, apiKey: "", iconBg: "bg-rose-50", iconColor: "text-rose-600" },
-  { id: "serpapi", name: "Google Trends (SerpAPI)", icon: TrendingUp, connected: false, apiKey: "", iconBg: "bg-sky-50", iconColor: "text-sky-600" },
-  { id: "reddit", name: "Reddit", icon: MessageSquare, connected: false, apiKey: "", iconBg: "bg-orange-50", iconColor: "text-orange-600" },
+const SERVICE_DEFINITIONS: Omit<ApiService, "connected" | "maskedKey" | "dbId">[] = [
+  { id: "openai", name: "OpenAI", icon: Brain, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", hint: "Create key at platform.openai.com → API Keys. Starts with sk-", url: "https://platform.openai.com/api-keys" },
+  { id: "google-ads", name: "Google Ads", icon: Globe, iconBg: "bg-blue-50", iconColor: "text-blue-600", hint: "Apply for a developer token in Google Ads → Tools → API Center", url: "https://ads.google.com/aw/apicenter" },
+  { id: "amazon", name: "Amazon Associates", icon: ShoppingBag, iconBg: "bg-amber-50", iconColor: "text-amber-600", hint: "Get your PA API key from Product Advertising API dashboard", url: "https://affiliate-program.amazon.com/assoc_credentials/home" },
+  { id: "cj", name: "CJ Affiliate", icon: Share2, iconBg: "bg-blue-50", iconColor: "text-blue-600", hint: "Find your API key in CJ → Account → Web Services", url: "https://members.cj.com/member/publisher/home.do" },
+  { id: "shareasale", name: "ShareASale", icon: Zap, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", hint: "Get your API token from ShareASale → Tools → API Program", url: "https://account.shareasale.com/a-apiManager.cfm" },
+  { id: "impact", name: "Impact", icon: CreditCard, iconBg: "bg-purple-50", iconColor: "text-purple-600", hint: "Find your Account SID & Auth Token in Impact → Settings → API", url: "https://app.impact.com/secure/mediapartner/accountSettings/mp-wsSettings.ihtml" },
+  { id: "clickbank", name: "ClickBank", icon: CreditCard, iconBg: "bg-rose-50", iconColor: "text-rose-600", hint: "Generate API keys at ClickBank → Settings → API Keys", url: "https://accounts.clickbank.com/apiKey.htm" },
+  { id: "serpapi", name: "Google Trends (SerpAPI)", icon: TrendingUp, iconBg: "bg-sky-50", iconColor: "text-sky-600", hint: "Sign up free at serpapi.com and copy your private API key", url: "https://serpapi.com/manage-api-key" },
+  { id: "reddit", name: "Reddit", icon: MessageSquare, iconBg: "bg-orange-50", iconColor: "text-orange-600", hint: "Create a Reddit app at reddit.com/prefs/apps → script type", url: "https://www.reddit.com/prefs/apps" },
 ]
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("api-keys")
-  const [services, setServices] = useState(initialServices)
+  const [services, setServices] = useState<ApiService[]>(
+    SERVICE_DEFINITIONS.map((s) => ({ ...s, connected: false, maskedKey: "" }))
+  )
   const [editingKey, setEditingKey] = useState<Record<string, string>>({})
   const [showKey, setShowKey] = useState<Record<string, boolean>>({})
+  const [validating, setValidating] = useState<Record<string, boolean>>({})
+  const [validationError, setValidationError] = useState<Record<string, string>>({})
+  const [loadingCredentials, setLoadingCredentials] = useState(true)
 
   // Account
   const [name, setName] = useState("Alex Johnson")
@@ -80,22 +88,134 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState("USD")
   const [autoScan, setAutoScan] = useState(true)
 
-  function handleSaveKey(id: string) {
-    const key = editingKey[id]
-    if (!key) return
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, connected: true, apiKey: key.substring(0, 4) + "..." + key.slice(-4) }
-          : s
+  // Load saved credentials from DB on mount
+  const loadCredentials = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings")
+      if (!res.ok) throw new Error("Failed to load")
+      const data = await res.json()
+      const creds = data.credentials as Array<{
+        id: string
+        service: string
+        apiKey: string
+        isActive: boolean
+      }>
+
+      setServices((prev) =>
+        prev.map((svc) => {
+          const saved = creds.find((c) => c.service === svc.id && c.isActive)
+          if (saved) {
+            return { ...svc, connected: true, maskedKey: saved.apiKey, dbId: saved.id }
+          }
+          return { ...svc, connected: false, maskedKey: "", dbId: undefined }
+        })
       )
-    )
-    setEditingKey((prev) => ({ ...prev, [id]: "" }))
+    } catch (err) {
+      console.error("Failed to load credentials:", err)
+    } finally {
+      setLoadingCredentials(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCredentials()
+  }, [loadCredentials])
+
+  async function handleSaveKey(id: string) {
+    const key = editingKey[id]?.trim()
+    if (!key) return
+
+    // Clear previous errors
+    setValidationError((prev) => ({ ...prev, [id]: "" }))
+    setValidating((prev) => ({ ...prev, [id]: true }))
+
+    try {
+      // Step 1: Validate the key
+      const validateRes = await fetch("/api/settings/validate-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service: id, apiKey: key }),
+      })
+
+      const validateData = await validateRes.json()
+
+      if (!validateData.valid) {
+        setValidationError((prev) => ({
+          ...prev,
+          [id]: validateData.error || "Invalid API key",
+        }))
+        return
+      }
+
+      // Step 2: Save to database
+      const saveRes = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service: id, apiKey: key }),
+      })
+
+      if (!saveRes.ok) {
+        const errData = await saveRes.json()
+        setValidationError((prev) => ({
+          ...prev,
+          [id]: errData.error || "Failed to save API key",
+        }))
+        return
+      }
+
+      const saveData = await saveRes.json()
+
+      // Step 3: Update UI
+      setServices((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                connected: true,
+                maskedKey: saveData.credential.apiKey,
+                dbId: saveData.credential.id,
+              }
+            : s
+        )
+      )
+      setEditingKey((prev) => ({ ...prev, [id]: "" }))
+    } catch {
+      setValidationError((prev) => ({
+        ...prev,
+        [id]: "Network error. Please try again.",
+      }))
+    } finally {
+      setValidating((prev) => ({ ...prev, [id]: false }))
+    }
   }
 
-  function handleDisconnect(id: string) {
+  async function handleDisconnect(id: string) {
+    const service = services.find((s) => s.id === id)
+    if (!service?.dbId) {
+      // No DB record, just reset UI
+      setServices((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, connected: false, maskedKey: "", dbId: undefined } : s
+        )
+      )
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/settings?id=${service.dbId}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        console.error("Failed to delete credential")
+      }
+    } catch {
+      console.error("Network error deleting credential")
+    }
+
     setServices((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, connected: false, apiKey: "" } : s))
+      prev.map((s) =>
+        s.id === id ? { ...s, connected: false, maskedKey: "", dbId: undefined } : s
+      )
     )
   }
 
@@ -139,82 +259,130 @@ export default function SettingsPage() {
           <div className="flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
             <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
             <p className="text-sm text-blue-700 leading-relaxed">
-              Connect your accounts to unlock all features. Each service needs an API key — check the <span className="font-medium">Help guide</span> for step-by-step instructions.
+              Connect your accounts to unlock all features. Each service needs an API key — check the <span className="font-medium">Help guide</span> for step-by-step instructions. Keys are validated before saving.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((service) => {
-              const Icon = service.icon
-              return (
-                <div key={service.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`rounded-full p-2 ${service.iconBg}`}>
-                        <Icon className={`h-5 w-5 ${service.iconColor}`} />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{service.name}</p>
-                        {service.connected ? (
-                          <span className="inline-flex items-center gap-1 mt-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                            <Check className="h-3 w-3" />Connected
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 mt-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                            <X className="h-3 w-3" />Not Connected
-                          </span>
-                        )}
+          {loadingCredentials ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <span className="ml-2 text-sm text-gray-500">Loading saved credentials...</span>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {services.map((service) => {
+                const Icon = service.icon
+                const isValidating = validating[service.id]
+                const error = validationError[service.id]
+                return (
+                  <div key={service.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`rounded-full p-2 ${service.iconBg}`}>
+                          <Icon className={`h-5 w-5 ${service.iconColor}`} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{service.name}</p>
+                          {service.connected ? (
+                            <span className="inline-flex items-center gap-1 mt-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                              <Check className="h-3 w-3" />Connected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 mt-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                              <X className="h-3 w-3" />Not Connected
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="mt-4 space-y-2">
-                    {service.connected && !editingKey[service.id] ? (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            readOnly
-                            value={showKey[service.id] ? service.apiKey : "****" + service.apiKey.slice(-4)}
-                            className="font-mono text-xs bg-gray-50 border-gray-200 text-gray-700"
-                          />
+                    <div className="mt-4 space-y-2">
+                      {service.connected && !editingKey[service.id] ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              readOnly
+                              value={showKey[service.id] ? service.maskedKey : "****" + service.maskedKey.slice(-4)}
+                              className="font-mono text-xs bg-gray-50 border-gray-200 text-gray-700"
+                            />
+                            <button
+                              className="shrink-0 p-2 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                              onClick={() => setShowKey((p) => ({ ...p, [service.id]: !p[service.id] }))}
+                            >
+                              {showKey[service.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
                           <button
-                            className="shrink-0 p-2 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                            onClick={() => setShowKey((p) => ({ ...p, [service.id]: !p[service.id] }))}
+                            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                            onClick={() => handleDisconnect(service.id)}
                           >
-                            {showKey[service.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            <Unplug className="h-3.5 w-3.5" />Disconnect
                           </button>
-                        </div>
-                        <button
-                          className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                          onClick={() => handleDisconnect(service.id)}
-                        >
-                          <Unplug className="h-3.5 w-3.5" />Disconnect
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <Input
-                          type="password"
-                          placeholder="Enter API key..."
-                          value={editingKey[service.id] || ""}
-                          onChange={(e) => setEditingKey((p) => ({ ...p, [service.id]: e.target.value }))}
-                          className="bg-gray-50 border-gray-200 text-gray-700 placeholder:text-gray-400"
-                        />
-                        <Button
-                          size="sm"
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                          disabled={!editingKey[service.id]}
-                          onClick={() => handleSaveKey(service.id)}
-                        >
-                          <Save className="mr-1.5 h-3.5 w-3.5" />Save & Connect
-                        </Button>
-                      </>
-                    )}
+                        </>
+                      ) : (
+                        <>
+                          {/* How to get API key hint */}
+                          <p className="text-[11px] text-gray-500 leading-relaxed">{service.hint}</p>
+                          <a
+                            href={service.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            Get API Key <ExternalLink className="h-3 w-3" />
+                          </a>
+
+                          <Input
+                            type="password"
+                            placeholder="Enter API key..."
+                            value={editingKey[service.id] || ""}
+                            onChange={(e) => {
+                              setEditingKey((p) => ({ ...p, [service.id]: e.target.value }))
+                              // Clear error when user starts typing
+                              if (validationError[service.id]) {
+                                setValidationError((p) => ({ ...p, [service.id]: "" }))
+                              }
+                            }}
+                            disabled={isValidating}
+                            className={`bg-gray-50 border-gray-200 text-gray-700 placeholder:text-gray-400 ${
+                              error ? "border-red-300 focus:ring-red-500" : ""
+                            }`}
+                          />
+
+                          {/* Validation error message */}
+                          {error && (
+                            <div className="flex items-start gap-1.5 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                              <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                              <p className="text-xs text-red-600 leading-relaxed">{error}</p>
+                            </div>
+                          )}
+
+                          <Button
+                            size="sm"
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={!editingKey[service.id]?.trim() || isValidating}
+                            onClick={() => handleSaveKey(service.id)}
+                          >
+                            {isValidating ? (
+                              <>
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                Validating...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="mr-1.5 h-3.5 w-3.5" />
+                                Validate & Connect
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

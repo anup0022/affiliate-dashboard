@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { openai } from "@/lib/openai";
 import { prisma } from "@/lib/db";
+import OpenAI from "openai";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,20 @@ const USER_ID = "user_default";
 
 export async function POST(req: NextRequest) {
   try {
+    // Check for OpenAI API key first
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "OpenAI API key is not configured. Please add your API key in Settings → API Keys, or set the OPENAI_API_KEY environment variable.",
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const openai = new OpenAI({ apiKey });
+
     const body = await req.json();
     const { message, history } = body as {
       message: string;
@@ -91,9 +105,21 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("POST /api/chat error:", error);
-    return new Response(
-      JSON.stringify({ error: "Failed to process chat message" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+
+    let errorMessage = "Failed to process chat message";
+    if (error instanceof OpenAI.AuthenticationError) {
+      errorMessage =
+        "Invalid OpenAI API key. Please check your key in Settings → API Keys.";
+    } else if (error instanceof OpenAI.RateLimitError) {
+      errorMessage =
+        "OpenAI rate limit exceeded or insufficient credits. Please check your OpenAI billing at platform.openai.com.";
+    } else if (error instanceof OpenAI.APIError) {
+      errorMessage = `OpenAI API error: ${error.message}`;
+    }
+
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
