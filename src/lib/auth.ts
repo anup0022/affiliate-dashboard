@@ -54,7 +54,7 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user, account }) {
-      // For Google sign-in, auto-create user if they don't exist
+      // For Google sign-in, auto-create or update user
       if (account?.provider === "google" && user.email) {
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email },
@@ -65,6 +65,15 @@ export const authOptions: NextAuthOptions = {
               email: user.email,
               name: user.name || user.email.split("@")[0],
               image: user.image || null,
+            },
+          })
+        } else {
+          // Update name and image from Google on every login
+          await prisma.user.update({
+            where: { email: user.email },
+            data: {
+              name: user.name || existingUser.name,
+              image: user.image || existingUser.image,
             },
           })
         }

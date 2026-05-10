@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import { Bot } from "lucide-react"
+import { useState, useEffect } from "react"
 
 interface ChatMessageProps {
   role: "user" | "assistant"
@@ -35,6 +36,11 @@ function parseMarkdown(text: string): string {
 
 export function ChatMessage({ role, content, timestamp }: ChatMessageProps) {
   const isUser = role === "user"
+  const [timeStr, setTimeStr] = useState("")
+
+  useEffect(() => {
+    setTimeStr(timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+  }, [timestamp])
 
   return (
     <div
@@ -73,7 +79,7 @@ export function ChatMessage({ role, content, timestamp }: ChatMessageProps) {
             isUser ? "text-blue-200" : "text-gray-400"
           )}
         >
-          {timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          {timeStr || "\u00A0"}
         </p>
       </div>
     </div>

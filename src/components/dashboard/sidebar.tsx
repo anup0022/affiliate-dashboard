@@ -39,13 +39,26 @@ const navItems: NavItem[] = [
   { icon: HelpCircle, label: "Help & Setup", href: "/help" },
 ];
 
+interface UserInfo {
+  name: string;
+  email: string;
+  image: string | null;
+}
+
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  user: UserInfo;
 }
 
-export default function Sidebar({ open, onClose }: SidebarProps) {
+export default function Sidebar({ open, onClose, user }: SidebarProps) {
   const pathname = usePathname();
+  const initials = user.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <>
@@ -129,14 +142,23 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
         {/* User section */}
         <div className="p-3 border-t border-gray-100 space-y-2">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold text-white">
-              A
-            </div>
+            {user.image ? (
+              <img
+                src={user.image}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold text-white">
+                {initials}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                Admin User
+                {user.name}
               </p>
-              <p className="text-xs text-gray-400 truncate">admin@affiliateiq.com</p>
+              <p className="text-xs text-gray-400 truncate">{user.email}</p>
             </div>
           </div>
           <button

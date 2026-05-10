@@ -94,11 +94,18 @@ const initialNotifications = [
   },
 ];
 
-interface HeaderProps {
-  onMenuToggle: () => void;
+interface UserInfo {
+  name: string;
+  email: string;
+  image: string | null;
 }
 
-export default function Header({ onMenuToggle }: HeaderProps) {
+interface HeaderProps {
+  onMenuToggle: () => void;
+  user: UserInfo;
+}
+
+export default function Header({ onMenuToggle, user }: HeaderProps) {
   const pathname = usePathname();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -107,6 +114,13 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const profileRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const initials = user.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  const firstName = user.name.split(" ")[0];
 
   const title =
     pageTitles[pathname] ??
@@ -278,11 +292,20 @@ export default function Header({ onMenuToggle }: HeaderProps) {
             }}
             className="flex items-center gap-2 rounded-lg p-1 hover:bg-gray-100 transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold text-white">
-              A
-            </div>
+            {user.image ? (
+              <img
+                src={user.image}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-xs font-bold text-white">
+                {initials}
+              </div>
+            )}
             <span className="hidden md:block text-sm font-medium text-gray-700 pr-1">
-              Admin
+              {firstName}
             </span>
           </button>
 
@@ -292,10 +315,10 @@ export default function Header({ onMenuToggle }: HeaderProps) {
               {/* User info */}
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">
-                  Admin User
+                  {user.name}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  admin@affiliateiq.com
+                  {user.email}
                 </p>
               </div>
 

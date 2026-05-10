@@ -16,6 +16,7 @@ import {
   HelpCircle,
 } from "lucide-react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { EarningsChart } from "@/components/charts/earnings-chart"
 import { NetworkChart } from "@/components/charts/network-chart"
@@ -73,6 +74,8 @@ function getGreeting() {
 }
 
 export default function DashboardPage() {
+  const { data: session } = useSession()
+  const firstName = session?.user?.name?.split(" ")[0] ?? "there"
   const completedCount = checklistItems.filter((i) => i.done).length
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
 
@@ -81,7 +84,7 @@ export default function DashboardPage() {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          {getGreeting()}! Here&apos;s your dashboard overview
+          {getGreeting()}, {firstName}! Here&apos;s your dashboard overview
         </h1>
         <p className="mt-1 text-sm text-gray-500">{todayStr}</p>
       </div>
